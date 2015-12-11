@@ -1,7 +1,7 @@
 Allows the user to download their bookmarked works from AO3. Does not support private bookmarks.
 
 Usage:
-sh 10-download.sh -u UID [-f FORMAT] [-p PROCESSES] [-s SECTION]
+perl 10-download.pl -u UID [-f FORMAT] [-p PROCESSES] [-s SECTION]
 
 Options:
 -u  User ID on AO3 [required]
