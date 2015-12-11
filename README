@@ -1,14 +1,24 @@
-Allows the user to download their bookmarked works from AO3. Does not support private bookmarks.
+NAME
+    AO3 Downloader
 
-Usage:
-perl 10-download.pl -u UID [-f FORMAT] [-p PROCESSES] [-s SECTION]
+SYNOPSIS
+    ao3-download -u UID [options]
 
-Options:
--u  User ID on AO3 [required]
--f  Format to download. Valid values are epub (default), mobi, pdf, and html [optional]
--p  Processes to run at once [optional]
--s  Section to download. Valid values are bookmarks (default), and works. (Collections and Serieses are not supported at this time) [optional]
+OPTIONS
+    -uid        User ID on AO3. [required]
 
-Happy downloading!
+    -processes  Processes to run at once.
 
-~From l1n with love
+    -format     Format to download works in. Valid values are epub
+                (default), mobi, pdf, and html.
+
+    -directory  Where to download files (default current directory).
+
+    -section    Section to download. Valid values are bookmarks (default),
+                and works. (Collections and Serieses are not supported at
+                this time).
+
+DESCRIPTION
+    This program will download the works found for a section of a given user
+    page.
+
