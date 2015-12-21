@@ -11,6 +11,7 @@ use URI::Escape;
 use Thread::Queue;
 use Thread::Semaphore;
 
+Getopt::Long::Configure ('auto_abbrev', 'gnu_compat');
 $File::Fetch::BLACKLIST = [qw|lwp|]; #Breaks the archive for an unknown reason
 
 my $uid       = undef;
