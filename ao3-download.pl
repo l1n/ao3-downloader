@@ -22,12 +22,12 @@ my $section   = "bookmarks";
 my $help      = 0;
 
 GetOptions (
-    'u|uid=s'         => \$uid,
-    'p|processes:+'   => \$processes,
-    'f|format=s'      => \$format,
-    'd|directory=s'   => \$directory,
-    's|section=s'     => \$section,
-    'h|help'         => \$help,
+    'uid=s'         => \$uid,
+    'processes:+'   => \$processes,
+    'format=s'      => \$format,
+    'directory=s'   => \$directory,
+    'section=s'     => \$section,
+    'help'         => \$help,
 ) and $uid or die pod2usage(-exitval => 0, -verbose => 2);
 
 print "Started:\r\nUID => ", $uid, "\r\nThreads => ", $processes, "\r\nSection => ", $section, "\r\n";
