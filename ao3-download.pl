@@ -20,7 +20,9 @@ Getopt::Long::Configure (
     'auto_abbrev',                      # Allows truncation of options
     'gnu_compat'                        # Allows --opt=BLA syntax and --opt "BLA"
 );
+
 $File::Fetch::BLACKLIST = [qw|lwp|];    # Breaks the Archive for an unknown reason
+$File::Fetch::WARN      = 0;            # We can handle the errors
 
 # Initialize default values for configurable sections of the program
 my $uid       = undef;                  # Required (can't make base URL without it)
@@ -29,6 +31,7 @@ my $format    = "epub";                 # Extension of downloaded works
 my $directory = ".";                    # Directory to drop downloads in
 my $section   = "bookmarks";            # Section of user's profile to get
 my $help      = 0;                      # Flag to print help and quit out
+my $retries   = 30;                     # Number of times to retry downloads
 
 GetOptions (
     'uid=s'         => \$uid,
@@ -40,7 +43,7 @@ GetOptions (
 )
     and (
        $uid                             # $uid is mandatory
-    && $processes > 0                   # Can't have less than one download thread
+    && $procs > 0                       # Can't have less than one download thread
     && $format =~                       # $format must be
         m{^(?:epub|pdf|html|mobi)$}     # epub, pdf, html, or mobi
 )
@@ -117,18 +120,19 @@ print 'Fetched ', $workCount, " works.\r\n";
 sub worker {
     while (my $t = $queue->dequeue) {
         $mutex->down();
-        print "Fetching ",@$t[0],"...";
+        print 'Fetching ', @$t[0], ' ';
         my $fetcher;
         my $tries = 0;
         do {
             $fetcher = File::Fetch->new(uri => @$t[1]);
             $fetcher->fetch(to => $directory);
+            print "." if ($fetcher->error); # Show a retry bar
             $tries++;
-        } while ($tries < 30 && $fetcher->error());
-        if ($tries == 30) {
-            print "Failed to fetch @$t[1] :(\r\n";
+        } while ($tries < $retries && $fetcher->error);
+        if ($tries == $retries) {
+            print 'Failed to fetch ', @$t[1], " :(\r\n";
         } else {
-            print "Done!\r\n";
+            print "... Done!\r\n";
         }
         $mutex->up();
     }
