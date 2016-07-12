@@ -4,29 +4,29 @@ AO3 Downloader
 
 =head1 SYNOPSIS
 
-ao3-download -u UID [options]
+ao3-download --uid UID [options]
 
 =head1 OPTIONS
 
 =over 12
 
-=item B<-uid>
+=item B<--uid>
 
 User ID on AO3. [required]
 
-=item B<-processes>
+=item B<--processes>
 
 Processes to run at once.
 
-=item B<-format>
+=item B<--format>
 
 Format to download works in. Valid values are epub (default), mobi, pdf, and html.
 
-=item B<-directory>
+=item B<--directory>
 
 Where to download files (default current directory).
 
-=item B<-section>
+=item B<--section>
 
 Section to download. Valid values are bookmarks (default), and works. (Collections and Serieses are not supported at this time).
 
