@@ -65,7 +65,7 @@ print "Done!\r\n";
 print "Downloading list of works...";
 my $sectionContents;                    # Total section contents aggregator
 # Initial URI to scrape
-my $uri = 'http://archiveofourown.org/users/'.$uid.'/'.$section;
+my $uri = 'https://archiveofourown.org/users/'.$uid.'/'.$section;
 do {
     my $fetchy = "";                    # Create blank variable to fetch page to
     # Initialize fetcher with $uri as the target
@@ -81,8 +81,8 @@ ERROR
 
     # Check for next page to scrape and scrape it or quit
     $fetchy =~ /rel="next" href="([^"]+)"/;
-    $uri = 'http://archiveofourown.org'.($1?$1:'');
-} while ($uri && $uri ne 'http://archiveofourown.org');
+    $uri = 'https://archiveofourown.org'.($1?$1:'');
+} while ($uri && $uri ne 'https://archiveofourown.org');
 print "Done!\r\n";
 
 # Queue the work links found (feedback is from the threads)
@@ -107,7 +107,7 @@ while (defined(my $line = shift @lines)) {
         $parts[5] =~ s/ +/ /g;
         $parts[5] = uri_escape substr $parts[5], 0, 24;
         # Queue the download for the current work URL
-        $queue->enqueue([$parts[1], join('/', 'http://archiveofourown.org/downloads', substr($parts[3], 0, 2), @parts[3,0,5]) . '.' . $format]);
+        $queue->enqueue([$parts[1], join('/', 'https://archiveofourown.org/downloads', substr($parts[3], 0, 2), @parts[3,0,5]) . '.' . $format]);
     }
 }
 undef @lines;                           # Garbage collect the lines
