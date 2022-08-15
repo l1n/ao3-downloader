@@ -100,14 +100,14 @@ while (defined(my $line = shift @lines)) {
         # The fourth line is important though
         $line .= shift @lines;
         # Split the line into parts
-        my @parts = $line =~ m{works/(\d*)[^>]*>([^<]*).*//archiveofourown.org/users/([^/]*?)/pseuds/([^"]*)}s;
+        my @parts = $line =~ m{works/(\d*)[^>]*>([^<]*).*/users/([^/]*?)/pseuds/([^"]*)}s;
         $parts[5] = $parts[1];
         $parts[5] =~ s/[^\w _-]+//g;
         $parts[5] = "Work by " . $parts[2] if $parts[5] eq "";
         $parts[5] =~ s/ +/ /g;
         $parts[5] = uri_escape substr $parts[5], 0, 24;
         # Queue the download for the current work URL
-        $queue->enqueue([$parts[1], join('/', 'https://archiveofourown.org/downloads', substr($parts[3], 0, 2), @parts[3,0,5]) . '.' . $format]);
+        $queue->enqueue([$parts[1], join('/', 'https://archiveofourown.org/downloads', @parts[0,5]) . '.' . $format]);
     }
 }
 undef @lines;                           # Garbage collect the lines
