@@ -30,9 +30,13 @@ Where to download files (default current directory).
 
 Section to download. Valid values are bookmarks (default), and works. (Collections and Serieses are not supported at this time).
 
+=item B<--comments>
+
+Also download reader comments for each work, saved as plain text files alongside the work downloads.
+
 =back
 
 =head1 DESCRIPTION
 
-B<This program> will download the works found for a section of a given user page.
+B<This program> will download the works found for a section of a given user page. Optionally, it can also download reader comments for each work.
 

@@ -32,6 +32,7 @@ my $directory = ".";                    # Directory to drop downloads in
 my $section   = "bookmarks";            # Section of user's profile to get
 my $help      = 0;                      # Flag to print help and quit out
 my $retries   = 30;                     # Number of times to retry downloads
+my $comments  = 0;                      # Flag to download comments
 
 GetOptions (
     'uid=s'         => \$uid,
@@ -40,6 +41,7 @@ GetOptions (
     'directory=s'   => \$directory,
     'section=s'     => \$section,
     'help'          => \$help,
+    'comments'      => \$comments,
 )
     and (
        $uid                             # $uid is mandatory
@@ -90,6 +92,7 @@ print "Done!\r\n";
 my @lines = split /$/m, $sectionContents;
 undef $sectionContents;                 # Garbage collect the string section
 my $workCount = 0;                      # A counter for works queued for download
+my @work_meta;                          # Metadata for comment downloading
                                         # TODO make this reflect works actually downloaded somehow
 while (defined(my $line = shift @lines)) {
     # If a line with a work link
@@ -105,9 +108,11 @@ while (defined(my $line = shift @lines)) {
         $parts[5] =~ s/[^\w _-]+//g;
         $parts[5] = "Work by " . $parts[2] if $parts[5] eq "";
         $parts[5] =~ s/ +/ /g;
+        my $safe_title = $parts[5];
         $parts[5] = uri_escape substr $parts[5], 0, 24;
         # Queue the download for the current work URL
         $queue->enqueue([$parts[1], join('/', 'https://archiveofourown.org/downloads', @parts[0,5]) . '.' . $format]);
+        push @work_meta, [$parts[0], $safe_title, $parts[1]] if $comments;
     }
 }
 undef @lines;                           # Garbage collect the lines
@@ -115,6 +120,25 @@ $queue->end;
 
 $_->join() foreach threads->list;
 print 'Fetched ', $workCount, " works.\r\n";
+
+# Download comments for each work if requested
+if ($comments && @work_meta) {
+    print "Downloading comments...\r\n";
+    my $comment_works = 0;
+    for my $meta (@work_meta) {
+        my ($work_id, $safe_title, $title) = @$meta;
+        print "  Fetching comments for: $title...";
+        my @all_comments = fetch_all_comments($work_id);
+        if (@all_comments) {
+            write_comments_file($directory, $safe_title, $title, $work_id, @all_comments);
+            print " ", scalar @all_comments, " comments saved.\r\n";
+            $comment_works++;
+        } else {
+            print " no comments found.\r\n";
+        }
+    }
+    print "Saved comments for $comment_works works.\r\n";
+}
 
 # Worker thread subroutine (download url to a file in a directory)
 sub worker {
@@ -136,6 +160,162 @@ sub worker {
         }
         $mutex->up();
     }
+}
+
+# Fetch all comments for a work, handling pagination
+sub fetch_all_comments {
+    my ($work_id) = @_;
+    my @all_comments;
+    my $url = "https://archiveofourown.org/works/$work_id?show_comments=true&view_adult=true";
+
+    while ($url) {
+        my $html = "";
+        my $fetcher;
+        my $tries = 0;
+        do {
+            $fetcher = File::Fetch->new(uri => $url);
+            $fetcher->fetch(to => \$html);
+            print "." if ($fetcher->error);
+            $tries++;
+        } while ($tries < $retries && $fetcher->error);
+
+        if ($tries == $retries) {
+            warn "Failed to fetch comments page: $url\n";
+            last;
+        }
+
+        push @all_comments, parse_comments($html);
+
+        # Check for next page of comments
+        if ($html =~ m{rel="next" href="([^"]*show_comments[^"]*)"}) {
+            my $next = $1;
+            $next =~ s/&amp;/&/g;
+            $url = "https://archiveofourown.org" . $next;
+        } else {
+            $url = undef;
+        }
+    }
+
+    return @all_comments;
+}
+
+# Parse comments from a single page of HTML
+sub parse_comments {
+    my ($html) = @_;
+    my @comments;
+
+    # Find the comments section
+    my $comments_start = index($html, '<ol class="thread">');
+    return @comments if $comments_start == -1;
+
+    my $section = substr($html, $comments_start);
+
+    # Find all comment positions first
+    my @positions;
+    while ($section =~ m{<li\s[^>]*id="comment_(\d+)"[^>]*>}g) {
+        push @positions, { id => $1, start => $-[0], after_tag => pos($section) };
+    }
+
+    for my $i (0 .. $#positions) {
+        my $p = $positions[$i];
+        my $chunk_end = $i < $#positions ? $positions[$i+1]{start} : length($section);
+        my $chunk = substr($section, $p->{after_tag}, $chunk_end - $p->{after_tag});
+
+        # Calculate depth from thread nesting before this comment
+        my $before = substr($section, 0, $p->{start});
+        my $opens = () = $before =~ m{<ol\s+class="thread">}g;
+        my $closes = () = $before =~ m{</ol>}g;
+        my $depth = $opens - $closes - 1;
+        $depth = 0 if $depth < 0;
+
+        # Extract author
+        my $author = "Anonymous";
+        if ($chunk =~ m{<h4[^>]*class="heading byline"[^>]*>(.*?)</h4>}s) {
+            my $byline = $1;
+            if ($byline =~ m{<a[^>]*href="/users/[^"]*"[^>]*>([^<]*)</a>}) {
+                $author = $1;
+            } else {
+                my $cleaned = strip_html($byline);
+                $author = $cleaned if $cleaned !~ /^\s*$/;
+            }
+        }
+
+        # Extract date
+        my $date = "";
+        if ($chunk =~ m{<span[^>]*class="posted datetime"[^>]*>.*?<abbr[^>]*>([^<]*)</abbr>}s) {
+            $date = $1;
+        }
+
+        # Extract body
+        my $body = "";
+        if ($chunk =~ m{<blockquote[^>]*class="userstuff"[^>]*>(.*?)</blockquote>}s) {
+            $body = strip_html($1);
+        }
+
+        push @comments, {
+            author => $author,
+            date   => $date,
+            depth  => $depth,
+            body   => $body,
+        };
+    }
+
+    return @comments;
+}
+
+# Strip HTML tags and decode common entities
+sub strip_html {
+    my ($text) = @_;
+    $text =~ s{<br\s*/?>}{\n}gi;
+    $text =~ s{<p[^>]*>}{\n}gi;
+    $text =~ s{</p>}{}gi;
+    $text =~ s{<[^>]+>}{}g;
+    $text =~ s/&amp;/&/g;
+    $text =~ s/&lt;/</g;
+    $text =~ s/&gt;/>/g;
+    $text =~ s/&quot;/"/g;
+    $text =~ s/&#39;/'/g;
+    $text =~ s/^\s+//;
+    $text =~ s/\s+$//;
+    return $text;
+}
+
+# Write comments to a text file
+sub write_comments_file {
+    my ($dir, $safe_title, $title, $work_id, @comments) = @_;
+    my $filename = "$dir/${safe_title}_comments.txt";
+
+    open(my $fh, '>', $filename) or do {
+        warn "Could not write to $filename: $!\n";
+        return;
+    };
+
+    print $fh "Comments for: $title\n";
+    print $fh "https://archiveofourown.org/works/$work_id\n";
+    print $fh "=" x 40, "\n\n";
+
+    for my $i (0 .. $#comments) {
+        my $c = $comments[$i];
+        my $indent = "  " x $c->{depth};
+
+        print $fh "$indent$c->{author}";
+        print $fh " ($c->{date})" if $c->{date};
+        print $fh "\n";
+
+        my $body_indent = $indent . "  ";
+        for my $line (split /\n/, $c->{body}) {
+            print $fh "$body_indent$line\n";
+        }
+        print $fh "\n";
+
+        # Add separator before next top-level comment
+        if ($i < $#comments && $comments[$i+1]{depth} == 0) {
+            print $fh "---\n\n";
+        }
+    }
+
+    print $fh "Total: ", scalar @comments, " comments\n";
+    close $fh;
 }
 
 __END__
@@ -172,10 +352,14 @@ Where to download files (default current directory).
 
 Section to download. Valid values are bookmarks (default), and works. (Collections and Serieses are not supported at this time).
 
+=item B<--comments>
+
+Also download reader comments for each work, saved as plain text files alongside the work downloads.
+
 =back
 
 =head1 DESCRIPTION
 
-B<This program> will download the works found for a section of a given user page.
+B<This program> will download the works found for a section of a given user page. Optionally, it can also download reader comments for each work.
 
 =cut
